@@ -1,5 +1,10 @@
 *.iml
 .gradle
+.artifacts/
+.env.example
+metadata.json
+**/test/
+**/androidTest/
 /local.properties
 /.idea
 .DS_Store
@@ -7,7 +12,6 @@
 /captures
 .externalNativeBuild
 .cxx
-local.properties
 /app/build
 /app/release
 *.apk

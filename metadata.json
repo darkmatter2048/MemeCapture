@@ -1,6 +1,0 @@
-{
-  "name": "表情包提取器",
-  "description": "自动捕获与提取微信、QQ聊天中的静态/动态表情包，支持自动最小周期提取与手动框选",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
