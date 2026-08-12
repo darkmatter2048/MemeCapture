@@ -1,7 +1,7 @@
 <div align=center>
 <img src="icon.png" width="150" height="150">
 
-<h1>MemeCapture</h1>
+<h1>表情大盗</h1>
 
 <p>
 <img src="https://img.shields.io/github/downloads/darkmatter2048/MemeCapture/total" alt="downloads" />
