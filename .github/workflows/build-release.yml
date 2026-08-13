@@ -59,7 +59,12 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "GEMINI_API_KEY=${GEMINI_API_KEY}" > .env
+          if [ -n "${GEMINI_API_KEY}" ]; then
+            echo "GEMINI_API_KEY=${GEMINI_API_KEY}" > .env
+            echo ".env created with GEMINI_API_KEY"
+          else
+            echo "GEMINI_API_KEY secret not set, skipping .env (using .env.example)"
+          fi
 
       - name: Setup Google Services
         env:
