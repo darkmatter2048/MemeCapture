@@ -1,0 +1,6 @@
+blank_issues_enabled: true # 启用空白问题
+contact_links:
+  - name: 💬 问题与讨论 💬
+    url: https://github.com/darkmatter2048/MemeCapture/discussions
+    about: "🤝 有问题或想聊天？欢迎加入我们友好的社区讨论！"
+
