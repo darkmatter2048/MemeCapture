@@ -47,7 +47,7 @@ jobs:
           # Accept licenses
           yes | "${SDKMANAGER}" --licenses > /dev/null 2>&1 || true
           # Install required platform and build-tools
-          "${SDKMANAGER}" "platforms;android-36" "build-tools;36.1.1"
+          "${SDKMANAGER}" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Create local.properties
         run: |
