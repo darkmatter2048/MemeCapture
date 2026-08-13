@@ -80,8 +80,15 @@ jobs:
             echo "ERROR: KEYSTORE_BASE64 secret is not set!"
             exit 1
           fi
-          echo "${KEYSTORE_BASE64}" | base64 -d > app/upload-keystore.jks
-          echo "Keystore decoded successfully"
+          # 去除所有空白字符（换行/回车/空格/tab），防止复制时带入换行
+          CLEAN=$(echo "${KEYSTORE_BASE64}" | tr -d '[:space:]')
+          echo "${CLEAN}" | base64 -d > app/upload-keystore.jks
+          SIZE=$(stat -c%s app/upload-keystore.jks)
+          echo "Keystore decoded, size: ${SIZE} bytes"
+          if [ "${SIZE}" -lt 1000 ]; then
+            echo "ERROR: keystore file too small (${SIZE} bytes), base64 may be corrupted or truncated!"
+            exit 1
+          fi
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
