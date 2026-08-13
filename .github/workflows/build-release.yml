@@ -41,14 +41,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platforms;android-36 build-tools;36.1.1'
-
-      - name: Accept Android SDK licenses
+      - name: Set up Android SDK
         run: |
-          yes | ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          # Accept licenses
+          yes | "${SDKMANAGER}" --licenses > /dev/null 2>&1 || true
+          # Install required platform and build-tools
+          "${SDKMANAGER}" "platforms;android-36" "build-tools;36.1.1"
 
       - name: Create local.properties
         run: |
