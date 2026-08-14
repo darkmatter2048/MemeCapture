@@ -43,7 +43,8 @@ data class EmojiUiState(
     val selectedEmojiForDetail: ExtractedEmoji? = null,
     val messageToast: String? = null,
     val showOverlayPermissionDialog: Boolean = false,
-    val showAbout: Boolean = false
+    val showAbout: Boolean = false,
+    val showDonate: Boolean = false
 )
 
 class EmojiViewModel(application: Application) : AndroidViewModel(application) {
@@ -116,6 +117,14 @@ class EmojiViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeAbout() {
         _uiState.value = _uiState.value.copy(showAbout = false)
+    }
+
+    fun openDonate() {
+        _uiState.value = _uiState.value.copy(showDonate = true)
+    }
+
+    fun closeDonate() {
+        _uiState.value = _uiState.value.copy(showDonate = false)
     }
 
     fun openDetail(emoji: ExtractedEmoji) {

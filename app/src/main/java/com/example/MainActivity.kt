@@ -47,6 +47,7 @@ import com.example.model.AppTheme
 import com.example.service.FloatingWindowService
 import com.example.ui.components.EmojiDetailDialog
 import com.example.ui.screens.AboutScreen
+import com.example.ui.screens.DonationScreen
 import com.example.ui.screens.GalleryScreen
 import com.example.ui.screens.HelpScreen
 import com.example.ui.screens.HomeScreen
@@ -136,6 +137,12 @@ fun MainAppScreen(
     // 关于页面：独立整页显示，隐藏底部导航栏
     if (state.showAbout) {
         AboutScreen(onBack = { viewModel.closeAbout() })
+        return
+    }
+
+    // 捐赠页面：独立整页显示，隐藏底部导航栏
+    if (state.showDonate) {
+        DonationScreen(onBack = { viewModel.closeDonate() })
         return
     }
 
@@ -232,7 +239,8 @@ fun MainAppScreen(
                 MainTab.SETTINGS -> SettingsScreen(
                     state = state,
                     onUpdateSettings = { viewModel.updateSettings(it) },
-                    onOpenAbout = { viewModel.openAbout() }
+                    onOpenAbout = { viewModel.openAbout() },
+                    onOpenDonate = { viewModel.openDonate() }
                 )
             }
 

@@ -30,6 +30,9 @@ jobs:
     name: Build Android App
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # 授予 GITHUB_TOKEN 创建 Release 所需的内容写权限（否则 softprops/action-gh-release 报 403）
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
