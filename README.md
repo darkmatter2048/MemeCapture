@@ -20,7 +20,7 @@
 > #### 🔔 如有一般性问题请前往 [Discussions](https://github.com/darkmatter2048/MemeCapture/discussions) 讨论区，***Issues*** 仅用于错误报告和功能请求。
 
 > [!tip]
-> #### 🧱 从 [中国大陆地区]() 下载最新版 MemeCapture
+> #### 🧱 从 [中国大陆地区下载](https://pan.quark.cn/s/eda5e9363a48) 最新版 MemeCapture
 
 ## 软件界面
 

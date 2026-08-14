@@ -42,7 +42,8 @@ data class EmojiUiState(
     val isProcessing: Boolean = false,
     val selectedEmojiForDetail: ExtractedEmoji? = null,
     val messageToast: String? = null,
-    val showOverlayPermissionDialog: Boolean = false
+    val showOverlayPermissionDialog: Boolean = false,
+    val showAbout: Boolean = false
 )
 
 class EmojiViewModel(application: Application) : AndroidViewModel(application) {
@@ -107,6 +108,14 @@ class EmojiViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectTab(tab: MainTab) {
         _uiState.value = _uiState.value.copy(currentTab = tab)
+    }
+
+    fun openAbout() {
+        _uiState.value = _uiState.value.copy(showAbout = true)
+    }
+
+    fun closeAbout() {
+        _uiState.value = _uiState.value.copy(showAbout = false)
     }
 
     fun openDetail(emoji: ExtractedEmoji) {
