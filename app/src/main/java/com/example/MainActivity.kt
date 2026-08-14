@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,6 +47,7 @@ import com.example.model.AppTheme
 import com.example.service.FloatingWindowService
 import com.example.ui.components.EmojiDetailDialog
 import com.example.ui.screens.GalleryScreen
+import com.example.ui.screens.HelpScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.MyApplicationTheme
@@ -146,6 +148,7 @@ fun MainAppScreen(
                         text = when (state.currentTab) {
                             MainTab.DASHBOARD -> "表情大盗"
                             MainTab.GALLERY -> "表情库"
+                            MainTab.HELP -> "帮助"
                             MainTab.SETTINGS -> "设置"
                         },
                         fontWeight = FontWeight.Bold,
@@ -181,6 +184,13 @@ fun MainAppScreen(
                 )
 
                 NavigationBarItem(
+                    selected = state.currentTab == MainTab.HELP,
+                    onClick = { viewModel.selectTab(MainTab.HELP) },
+                    icon = { Icon(Icons.Default.Help, contentDescription = "帮助") },
+                    label = { Text("帮助", fontSize = 11.sp) }
+                )
+
+                NavigationBarItem(
                     selected = state.currentTab == MainTab.SETTINGS,
                     onClick = { viewModel.selectTab(MainTab.SETTINGS) },
                     icon = { Icon(Icons.Default.Settings, contentDescription = "设置") },
@@ -211,6 +221,7 @@ fun MainAppScreen(
                     onDeleteEmoji = { viewModel.deleteEmoji(it) },
                     onClearAll = { viewModel.clearAllEmojis() }
                 )
+                MainTab.HELP -> HelpScreen()
                 MainTab.SETTINGS -> SettingsScreen(
                     state = state,
                     onUpdateSettings = { viewModel.updateSettings(it) }

@@ -30,6 +30,7 @@ import kotlinx.coroutines.withContext
 enum class MainTab {
     DASHBOARD,
     GALLERY,
+    HELP,
     SETTINGS
 }
 

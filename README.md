@@ -28,6 +28,18 @@
 |:---:|:---:|
 | <img src="readme/screenshot1.jpg" width="300"> | <img src="readme/screenshot2.jpg" width="300"> |
 
+## 使用教程
+
+- 1.启动服务
+- 2.跳转到微信或QQ
+- 3.部分机型需要点击超级岛然后允许屏幕共享
+- 4.后点击表情直到进入只有表情和纯色背景的表情聚焦页面
+- 5.点击悬浮窗的捕获按钮，按钮会消失，按钮再次出现即为捕获完成(动态表情需手动结束录制)
+
+>[!tip]
+>
+>[视频教程](app/src/main/res/raw/tutorial.mp4)(测试机型号:小米 17 T Pro)
+
 ## 贡献者
 
 <a href="https://github.com/darkmatter2048/MemeCapture/graphs/contributors">
