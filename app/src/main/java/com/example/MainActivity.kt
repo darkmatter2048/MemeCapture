@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +31,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -100,6 +102,12 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 启动时及从系统设置返回后，重新检测悬浮窗权限并更新弹窗状态
+        viewModel.refreshOverlayPermissionStatus(this)
     }
 
     override fun onDestroy() {
@@ -214,6 +222,25 @@ fun MainAppScreen(
                 EmojiDetailDialog(
                     emoji = emoji,
                     onDismiss = { viewModel.closeDetail() }
+                )
+            }
+
+            // 悬浮窗权限引导弹窗
+            if (state.showOverlayPermissionDialog) {
+                AlertDialog(
+                    onDismissRequest = { viewModel.dismissOverlayPermissionDialog() },
+                    title = { Text("需要悬浮窗权限") },
+                    text = { Text("请前往系统设置授予“显示在其他应用上层”权限。") },
+                    confirmButton = {
+                        TextButton(onClick = { viewModel.openOverlayPermissionSettings(context) }) {
+                            Text("去授权")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.dismissOverlayPermissionDialog() }) {
+                            Text("稍后")
+                        }
+                    }
                 )
             }
         }

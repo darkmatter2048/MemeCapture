@@ -40,7 +40,8 @@ data class EmojiUiState(
     val isServiceRunning: Boolean = false,
     val isProcessing: Boolean = false,
     val selectedEmojiForDetail: ExtractedEmoji? = null,
-    val messageToast: String? = null
+    val messageToast: String? = null,
+    val showOverlayPermissionDialog: Boolean = false
 )
 
 class EmojiViewModel(application: Application) : AndroidViewModel(application) {
@@ -127,15 +128,28 @@ class EmojiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun refreshOverlayPermissionStatus(context: Context) {
+        val hasPermission = checkOverlayPermission(context)
+        _uiState.value = _uiState.value.copy(showOverlayPermissionDialog = !hasPermission)
+    }
+
+    fun dismissOverlayPermissionDialog() {
+        _uiState.value = _uiState.value.copy(showOverlayPermissionDialog = false)
+    }
+
+    fun openOverlayPermissionSettings(context: Context) {
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:${context.packageName}")
+        ).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    }
+
     fun toggleService(context: Context) {
         if (!checkOverlayPermission(context)) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:${context.packageName}")
-            ).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
+            openOverlayPermissionSettings(context)
             Toast.makeText(context, "请授予“悬浮窗”权限以开启此功能", Toast.LENGTH_LONG).show()
             return
         }
