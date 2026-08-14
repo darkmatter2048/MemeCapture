@@ -241,6 +241,7 @@ object EmojiExtractorEngine {
 
         // ── Auto-crop emoji from chat background ─────────────────
         val cropBounds = EmojiCropper.findEmojiBounds(sampleFrame)
+        val backgroundColor = EmojiCropper.detectBackgroundColor(sampleFrame)
         val cropFrame: (Bitmap) -> Bitmap = { bmp ->
             if (cropBounds != null) EmojiCropper.cropToBounds(bmp, cropBounds) else bmp
         }
@@ -272,7 +273,8 @@ object EmojiExtractorEngine {
                 minPeriodMs = 0L,
                 timestamp = System.currentTimeMillis(),
                 sourceApp = sourceApp,
-                sizeBytes = file.length()
+                sizeBytes = file.length(),
+                backgroundColor = backgroundColor
             )
         } else {
             val (minCycleFrames, minPeriodMs) = detectMinimumPeriod(rawFrames)
@@ -306,7 +308,8 @@ object EmojiExtractorEngine {
                 minPeriodMs = minPeriodMs,
                 timestamp = System.currentTimeMillis(),
                 sourceApp = sourceApp,
-                sizeBytes = file.length()
+                sizeBytes = file.length(),
+                backgroundColor = backgroundColor
             )
         }
     }

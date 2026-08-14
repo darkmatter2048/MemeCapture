@@ -17,7 +17,8 @@ data class ExtractedEmoji(
     val minPeriodMs: Long = 0L,
     val timestamp: Long = System.currentTimeMillis(),
     val sourceApp: String = "微信", // "微信", "QQ", "手动框选", "测试模拟"
-    val sizeBytes: Long = 0L
+    val sizeBytes: Long = 0L,
+    val backgroundColor: Int? = null // 提取时记录的背景色（色度抠图用），旧数据可能为 null
 )
 
 enum class CaptureMode {

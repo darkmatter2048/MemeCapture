@@ -59,9 +59,10 @@ class GifEncoder {
             val h = frame.height
             val pixels = IntArray(w * h)
             frame.getPixels(pixels, 0, w, 0, 0, w, h)
-            // Sample every 4th pixel for speed
+            // Sample every 4th pixel for speed（跳过透明像素，避免污染调色板）
             for (i in pixels.indices step 4) {
                 val c = pixels[i]
+                if (Color.alpha(c) < 128) continue
                 val r = (Color.red(c) shr 3)     // 0 … 31
                 val g = (Color.green(c) shr 3)
                 val b = (Color.blue(c) shr 3)
@@ -76,17 +77,18 @@ class GifEncoder {
             .map { Bucket(it, hist[it]) }
             .filter { it.count > 0 }
             .sortedByDescending { it.count }
-            .take(256)
+            .take(255)  // 索引 0 保留给透明色
 
         val pal = IntArray(256)
+        pal[0] = 0  // 透明色索引（设置了透明标志后此颜色不显示）
         for ((i, b) in buckets.withIndex()) {
             val r = ((b.idx shr 10) and 0x1F) shl 3
             val g = ((b.idx shr 5) and 0x1F) shl 3
             val bl = (b.idx and 0x1F) shl 3
-            pal[i] = Color.rgb(r, g, bl)
+            pal[i + 1] = Color.rgb(r, g, bl)
         }
         // Pad remainder with black
-        for (i in buckets.size until 256) pal[i] = 0
+        for (i in (buckets.size + 1) until 256) pal[i] = 0
 
         palette = pal
 
@@ -97,9 +99,9 @@ class GifEncoder {
             val g5 = ((i shr 5) and 0x1F) shl 3
             val b5 = (i and 0x1F) shl 3
 
-            var best = 0
+            var best = 1
             var bestDist = Int.MAX_VALUE
-            for (j in 0 until 256) {
+            for (j in 1 until 256) {
                 val pc = pal[j]
                 val dr = r5 - Color.red(pc)
                 val dg = g5 - Color.green(pc)
@@ -126,10 +128,14 @@ class GifEncoder {
             val indexed = ByteArray(pixels.size)
             for (i in pixels.indices) {
                 val c = pixels[i]
-                val r5 = Color.red(c) shr 3
-                val g5 = Color.green(c) shr 3
-                val b5 = Color.blue(c) shr 3
-                indexed[i] = lookup[(r5 shl 10) or (g5 shl 5) or b5]
+                if (Color.alpha(c) < 128) {
+                    indexed[i] = 0  // 透明 → 索引 0
+                } else {
+                    val r5 = Color.red(c) shr 3
+                    val g5 = Color.green(c) shr 3
+                    val b5 = Color.blue(c) shr 3
+                    indexed[i] = lookup[(r5 shl 10) or (g5 shl 5) or b5]
+                }
             }
 
             if (firstFrame) {
@@ -212,9 +218,9 @@ class GifEncoder {
         out?.write(0x21)
         out?.write(0xF9)
         out?.write(4)
-        out?.write(0)  // packed
+        out?.write(0x01)  // packed: bit0 = 透明色标志
         writeShort(delay)
-        out?.write(0)  // transparent colour index (none)
+        out?.write(0)  // 透明色索引 = 0
         out?.write(0)
     }
 

@@ -32,6 +32,19 @@ object EmojiCropper {
     // ── Public API ──────────────────────────────────────────────
 
     /**
+     * Samples the chat-background colour from the top-middle pixel of the
+     * edge-cropped frame.  Returns null if the bitmap is empty.
+     *
+     * This is the colour later used for chroma-keying when the user chooses
+     * to download with the background removed.
+     */
+    fun detectBackgroundColor(bitmap: Bitmap): Int? {
+        if (bitmap.width <= 0 || bitmap.height <= 0) return null
+        val cropped = cropEdges(bitmap)
+        return cropped.getPixel(cropped.width / 2, 0)
+    }
+
+    /**
      * Finds the bounding box of the largest emoji in [bitmap].
      * Returns null if no emoji region is detected.
      */

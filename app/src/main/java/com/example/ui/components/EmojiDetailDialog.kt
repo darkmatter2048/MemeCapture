@@ -1,10 +1,7 @@
 package com.example.ui.components
 
-import android.content.ContentValues
 import android.content.Intent
 import android.net.Uri
-import android.os.Environment
-import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -27,13 +24,18 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,7 +55,10 @@ import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import coil.size.Scale
 import com.example.model.ExtractedEmoji
+import com.example.util.DownloadOptions
+import com.example.util.EmojiDownloadProcessor
 import java.io.File
+import kotlinx.coroutines.launch
 
 @Composable
 fun EmojiDetailDialog(
@@ -61,6 +66,10 @@ fun EmojiDetailDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var showDownloadDialog by remember { mutableStateOf(false) }
+    // 下载进度：null 表示未在下载；(done, total) 表示已处理/总帧数
+    var downloadProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     // Create ImageLoader once, with GIF decode support, and dispose on leave
     val imageLoader = remember {
@@ -159,38 +168,7 @@ fun EmojiDetailDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     OutlinedButton(
-                        onClick = {
-                            try {
-                                val srcFile = File(emoji.filePath)
-                                val mimeType = if (emoji.isAnimated) "image/gif" else "image/jpeg"
-                                val displayName = "${emoji.title}.${if (emoji.isAnimated) "gif" else "jpg"}"
-
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                    val values = ContentValues().apply {
-                                        put(MediaStore.Downloads.DISPLAY_NAME, displayName)
-                                        put(MediaStore.Downloads.MIME_TYPE, mimeType)
-                                        put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                                    }
-                                    val uri = context.contentResolver.insert(
-                                        MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
-                                    )
-                                    uri?.let {
-                                        context.contentResolver.openOutputStream(it)?.use { out ->
-                                            srcFile.inputStream().use { inp -> inp.copyTo(out) }
-                                        }
-                                    }
-                                } else {
-                                    @Suppress("DEPRECATION")
-                                    val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                    dir.mkdirs()
-                                    val dest = File(dir, displayName)
-                                    srcFile.copyTo(dest, overwrite = true)
-                                }
-                                Toast.makeText(context, "已保存到下载目录", Toast.LENGTH_SHORT).show()
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "保存失败: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                            }
-                        },
+                        onClick = { showDownloadDialog = true },
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Text("下载")
@@ -218,6 +196,74 @@ fun EmojiDetailDialog(
                         Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("分享 / 发送")
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDownloadDialog) {
+        DownloadOptionsDialog(
+            emoji = emoji,
+            onDismiss = { showDownloadDialog = false },
+            onConfirm = { options ->
+                showDownloadDialog = false
+                scope.launch {
+                    val result = EmojiDownloadProcessor.download(context, emoji, options) { done, total ->
+                        downloadProgress = done to total
+                    }
+                    downloadProgress = null
+                    result.onSuccess {
+                        Toast.makeText(context, "已保存到下载目录", Toast.LENGTH_SHORT).show()
+                    }.onFailure {
+                        Toast.makeText(context, "保存失败: ${it.localizedMessage}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
+    }
+
+    // 下载进度弹窗（动态 GIF 按帧显示真实进度）
+    downloadProgress?.let { (done, total) ->
+        Dialog(onDismissRequest = { }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "正在处理",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    if (emoji.isAnimated) {
+                        LinearProgressIndicator(
+                            progress = { if (total > 0) done.toFloat() / total else 0f },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "$done / $total 帧",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "请稍候…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
