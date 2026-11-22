@@ -67,7 +67,7 @@ class EmojiViewModel(application: Application) : AndroidViewModel(application) {
         fun loadSettingsFromPrefs(context: Context) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             _globalSettings.value = CaptureSettings(
-                staticFormat = prefs.getString(KEY_STATIC_FORMAT, "JPG") ?: "JPG",
+                staticFormat = prefs.getString(KEY_STATIC_FORMAT, "PNG") ?: "PNG",
                 theme = try { AppTheme.valueOf(prefs.getString(KEY_THEME, "SYSTEM") ?: "SYSTEM") } catch (_: Exception) { AppTheme.SYSTEM },
                 colorTheme = try { AppColorTheme.valueOf(prefs.getString(KEY_COLOR_THEME, "GREEN") ?: "GREEN") } catch (_: Exception) { AppColorTheme.GREEN }
             )

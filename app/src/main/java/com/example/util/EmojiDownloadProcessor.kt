@@ -18,14 +18,14 @@ import java.io.FileOutputStream
 import kotlin.math.abs
 
 enum class UpscaleMode {
-    SUPER_RES_4X,   // 超分四倍（逻辑待实现）
+    SUPER_RES_4X,   // 超分四倍
     NORMAL,         // 普通放大
     NONE            // 不放大
 }
 
 data class DownloadOptions(
     val chromaKey: Boolean = false,
-    val upscaleMode: UpscaleMode = UpscaleMode.NORMAL,
+    val upscaleMode: UpscaleMode = UpscaleMode.NONE,
     val upscaleMultiplier: Float = 4f
 )
 

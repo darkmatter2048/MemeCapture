@@ -11,6 +11,7 @@ import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -67,6 +68,8 @@ import com.example.data.EmojiDatabase
 import com.example.model.AppTheme
 import com.example.ui.theme.MyApplicationTheme
 import com.example.util.EmojiExtractorEngine
+import com.example.util.EmojiCropper
+import com.example.util.CaptureSampleBuffer
 import com.example.util.ScreenCaptureManager
 import com.example.viewmodel.EmojiViewModel
 import kotlinx.coroutines.Dispatchers
@@ -78,6 +81,8 @@ import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
 class FloatingWindowService : Service() {
+
+    private val recordingMemoryLimit = 96L * 1024 * 1024
 
     private var windowManager: WindowManager? = null
     private var floatingView: View? = null
@@ -175,72 +180,96 @@ class FloatingWindowService : Service() {
         floatingView?.visibility = View.INVISIBLE
 
         serviceLifecycleOwner.lifecycleScope.launch {
-            kotlinx.coroutines.delay(200)
+            val sample = CaptureSampleBuffer()
 
             try {
+                kotlinx.coroutines.delay(200)
                 var success = false
                 var message = ""
 
                 // ── Phase 1: Quick sample (~1.5 s) to detect animation ──
-                val sampleFrames = withContext(Dispatchers.Default) {
-                    val frames = mutableListOf<Bitmap>()
+                withContext(Dispatchers.Default) {
                     val deadline = System.currentTimeMillis() + 1500
                     while (System.currentTimeMillis() < deadline) {
-                        ScreenCaptureManager.captureSingle()
-                            ?.let { downscaleBitmap(it) }
-                            ?.let { frames.add(it) }
+                        ScreenCaptureManager.captureSingle()?.let(sample::add)
                         kotlinx.coroutines.delay(1000L / 15)
                     }
-                    frames
                 }
 
-                val isAnimated = sampleFrames.size >= 6 &&
-                        EmojiExtractorEngine.isAnimated(sampleFrames)
+                val isAnimated = sample.analysisFrames.size >= 6 &&
+                        EmojiExtractorEngine.isAnimatedSample(sample.analysisFrames)
 
                 if (!isAnimated) {
-                    // ── Static: save directly ────────────────────
-                    if (sampleFrames.isNotEmpty()) {
-                        val result = EmojiExtractorEngine.processCapture(
-                            context = this@FloatingWindowService,
-                            rawFrames = sampleFrames,
-                            settings = EmojiViewModel.globalSettings.value
-                        )
-                        val db = EmojiDatabase.getDatabase(this@FloatingWindowService)
-                        db.emojiDao().insertEmoji(result)
-                        success = true
-                        message = "截屏成功！"
-                    }
+                    val frame = sample.latestFullFrame
+                        ?: throw IllegalStateException("未能获取截图")
+                    val result = EmojiExtractorEngine.processCapture(
+                        context = this@FloatingWindowService,
+                        rawFrames = listOf(frame),
+                        settings = EmojiViewModel.globalSettings.value
+                    )
+                    EmojiDatabase.getDatabase(this@FloatingWindowService).emojiDao().insertEmoji(result)
+                    success = true
+                    message = "截屏成功！"
                 } else {
+                    val referenceFrame = sample.latestFullFrame
+                        ?: throw IllegalStateException("未能获取截图")
+                    val bounds = EmojiCropper.findFullResolutionBounds(referenceFrame)
+                        ?: throw IllegalStateException("未识别到表情区域，请调整画面后重试")
+                    val backgroundColor = EmojiCropper.detectBackgroundColor(referenceFrame)
+                    sample.close()
+
                     // ── Animated: show recording overlay ─────────
                     val stopFlag = java.util.concurrent.atomic.AtomicBoolean(true)
                     showRecordingOverlay(stopFlag)
 
                     val recordedFrames = withContext(Dispatchers.Default) {
                         val frames = mutableListOf<Bitmap>()
+                        var recordedBytes = 0L
                         val frameInterval = 1000L / 15
                         val deadline = System.currentTimeMillis() + 60_000
                         val maxFrames = 300  // safety: ~20 s at 15 fps
-                        while (stopFlag.get() && System.currentTimeMillis() < deadline && frames.size < maxFrames) {
-                            ScreenCaptureManager.captureSingle()
-                                ?.let { downscaleBitmap(it) }
-                                ?.let { frames.add(it) }
-                            kotlinx.coroutines.delay(frameInterval)
+                        try {
+                            while (stopFlag.get() && System.currentTimeMillis() < deadline && frames.size < maxFrames) {
+                                ScreenCaptureManager.captureSingle()?.let { fullFrame ->
+                                    try {
+                                        val cropped = EmojiCropper.cropToBounds(fullFrame, bounds)
+                                        if (recordedBytes + cropped.allocationByteCount > recordingMemoryLimit && frames.isNotEmpty()) {
+                                            cropped.recycle()
+                                            stopFlag.set(false)
+                                        } else {
+                                            frames.add(cropped)
+                                            recordedBytes += cropped.allocationByteCount
+                                        }
+                                    } finally {
+                                        fullFrame.recycle()
+                                    }
+                                }
+                                kotlinx.coroutines.delay(frameInterval)
+                            }
+                            frames
+                        } catch (e: Exception) {
+                            frames.forEach { it.recycle() }
+                            throw e
                         }
-                        frames
                     }
 
                     dismissRecordingOverlay()
 
-                    if (recordedFrames.isNotEmpty()) {
+                    try {
+                        if (recordedFrames.isEmpty()) throw IllegalStateException("未录到画面")
                         val result = EmojiExtractorEngine.processCapture(
                             context = this@FloatingWindowService,
                             rawFrames = recordedFrames,
-                            settings = EmojiViewModel.globalSettings.value
+                            settings = EmojiViewModel.globalSettings.value,
+                            framesAlreadyCropped = true,
+                            originalBackgroundColor = backgroundColor,
+                            forceAnimated = true
                         )
-                        val db = EmojiDatabase.getDatabase(this@FloatingWindowService)
-                        db.emojiDao().insertEmoji(result)
+                        EmojiDatabase.getDatabase(this@FloatingWindowService).emojiDao().insertEmoji(result)
                         success = true
                         message = if (result.isAnimated) "检测到动态内容，已自动提取周期片段！" else "截屏成功！"
+                    } finally {
+                        recordedFrames.forEach { it.recycle() }
                     }
                 }
 
@@ -251,9 +280,10 @@ class FloatingWindowService : Service() {
                 // Coroutine cancelled — don't toast, just let finally clean up
                 throw e
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("EmojiCapture", "Capture or save failed", e)
                 Toast.makeText(applicationContext, "保存失败: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
             } finally {
+                sample.close()
                 dismissRecordingOverlay()
                 floatingView?.visibility = View.VISIBLE
                 isCapturing = false
@@ -438,25 +468,6 @@ class FloatingWindowService : Service() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-    }
-
-    /**
-     * Scales [bitmap] down to at most 512 px on the longest side, keeping
-     * aspect ratio.  Original is recycled.  This keeps memory usage bounded
-     * during recording — full-screen RGBA captures can be 10+ MB each.
-     */
-    private fun downscaleBitmap(bitmap: Bitmap): Bitmap {
-        val maxDim = 512
-        val w = bitmap.width
-        val h = bitmap.height
-        if (w <= maxDim && h <= maxDim) return bitmap
-
-        val scale = maxDim.toFloat() / maxOf(w, h)
-        val newW = (w * scale).toInt()
-        val newH = (h * scale).toInt()
-        val scaled = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
-        if (scaled !== bitmap) bitmap.recycle()
-        return scaled
     }
 
     @Composable

@@ -185,7 +185,11 @@ fun EmojiDetailDialog(
                                 file
                             )
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = if (emoji.isAnimated) "image/gif" else "image/jpeg"
+                                type = when {
+                                    emoji.isAnimated -> "image/gif"
+                                    emoji.format == "PNG" -> "image/png"
+                                    else -> "image/jpeg"
+                                }
                                 putExtra(Intent.EXTRA_STREAM, uri)
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }

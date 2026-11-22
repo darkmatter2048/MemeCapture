@@ -41,7 +41,7 @@ enum class AppColorTheme {
 }
 
 data class CaptureSettings(
-    val staticFormat: String = "JPG", // "JPG" or "PNG"
+    val staticFormat: String = "PNG", // "JPG" or "PNG"
     val theme: AppTheme = AppTheme.SYSTEM,
     val colorTheme: AppColorTheme = AppColorTheme.GREEN
 )

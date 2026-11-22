@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Rect
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
@@ -28,6 +30,7 @@ object EmojiCropper {
     private const val MIN_GAP_ROWS = 10
     private const val MIN_PIXELS = 100
     private const val DENSITY_THRESHOLD = 0.02f
+    private const val ANALYSIS_MAX_DIM = 512
 
     // ── Public API ──────────────────────────────────────────────
 
@@ -40,8 +43,7 @@ object EmojiCropper {
      */
     fun detectBackgroundColor(bitmap: Bitmap): Int? {
         if (bitmap.width <= 0 || bitmap.height <= 0) return null
-        val cropped = cropEdges(bitmap)
-        return cropped.getPixel(cropped.width / 2, 0)
+        return bitmap.getPixel(bitmap.width / 2, (bitmap.height * 0.10).toInt())
     }
 
     /**
@@ -50,29 +52,60 @@ object EmojiCropper {
      */
     fun findEmojiBounds(bitmap: Bitmap): Rect? {
         val cropped = cropEdges(bitmap)
-        val w = cropped.width
-        val h = cropped.height
+        try {
+            val w = cropped.width
+            val h = cropped.height
 
-        val borderColor = cropped.getPixel(w / 2, 0)
-        val bgMask = floodFillBackground(cropped, borderColor)
-        val regions = scanEmojiRegions(w, h, bgMask)
+            val borderColor = cropped.getPixel(w / 2, 0)
+            val bgMask = floodFillBackground(cropped, borderColor)
+            val regions = scanEmojiRegions(w, h, bgMask)
 
-        if (regions.isEmpty()) return null
+            if (regions.isEmpty()) return null
 
-        val main = regions.maxByOrNull { it.pixelCount } ?: return null
-        if (main.pixelCount < MIN_PIXELS) return null
+            val main = regions.maxByOrNull { it.pixelCount } ?: return null
+            if (main.pixelCount < MIN_PIXELS) return null
 
-        // Map back to original bitmap coordinates
-        val topPct = (bitmap.height * 0.10).toInt()
-        val leftPct = (bitmap.width * 0.05).toInt()
+            // Map back to original bitmap coordinates
+            val topPct = (bitmap.height * 0.10).toInt()
+            val leftPct = (bitmap.width * 0.05).toInt()
 
-        val trimmed = trimBackgroundEdges(cropped, main, bgMask, borderColor)
-        return Rect(
-            leftPct + trimmed.left,
-            topPct + trimmed.top,
-            leftPct + trimmed.right + 1,
-            topPct + trimmed.bottom + 1
+            val trimmed = trimBackgroundEdges(cropped, main, bgMask, borderColor)
+            return Rect(
+                leftPct + trimmed.left,
+                topPct + trimmed.top,
+                leftPct + trimmed.right + 1,
+                topPct + trimmed.bottom + 1
+            )
+        } finally {
+            cropped.recycle()
+        }
+    }
+
+    /** Detect on a small preview, but return bounds in the original pixel coordinates. */
+    fun findFullResolutionBounds(bitmap: Bitmap): Rect? {
+        val longestSide = max(bitmap.width, bitmap.height)
+        if (longestSide <= ANALYSIS_MAX_DIM) return findEmojiBounds(bitmap)
+
+        val scale = ANALYSIS_MAX_DIM.toFloat() / longestSide
+        val preview = Bitmap.createScaledBitmap(
+            bitmap,
+            max(1, (bitmap.width * scale).toInt()),
+            max(1, (bitmap.height * scale).toInt()),
+            true
         )
+        return try {
+            val bounds = findEmojiBounds(preview) ?: return null
+            val scaleX = bitmap.width.toDouble() / preview.width
+            val scaleY = bitmap.height.toDouble() / preview.height
+            Rect(
+                (floor(bounds.left * scaleX).toInt() - 2).coerceAtLeast(0),
+                (floor(bounds.top * scaleY).toInt() - 2).coerceAtLeast(0),
+                (ceil(bounds.right * scaleX).toInt() + 2).coerceAtMost(bitmap.width),
+                (ceil(bounds.bottom * scaleY).toInt() + 2).coerceAtMost(bitmap.height)
+            )
+        } finally {
+            preview.recycle()
+        }
     }
 
     /** Applies [bounds] to [bitmap], returning a cropped copy. */

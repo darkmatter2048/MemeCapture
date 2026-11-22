@@ -38,7 +38,7 @@ fun DownloadOptionsDialog(
     onConfirm: (DownloadOptions) -> Unit
 ) {
     var chromaKey by remember { mutableStateOf(false) }
-    var upscaleMode by remember { mutableStateOf(UpscaleMode.NORMAL) }
+    var upscaleMode by remember { mutableStateOf(UpscaleMode.NONE) }
     var multiplierText by remember { mutableStateOf("4") }
     var menuExpanded by remember { mutableStateOf(false) }
 

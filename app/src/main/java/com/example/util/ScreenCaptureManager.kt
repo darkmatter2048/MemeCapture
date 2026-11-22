@@ -76,7 +76,11 @@ object ScreenCaptureManager {
                 Bitmap.Config.ARGB_8888
             )
             bitmap.copyPixelsFromBuffer(buffer)
-            Bitmap.createBitmap(bitmap, 0, 0, screenWidth, screenHeight)
+            if (rowPadding == 0) bitmap else {
+                val cropped = Bitmap.createBitmap(bitmap, 0, 0, screenWidth, screenHeight)
+                bitmap.recycle()
+                cropped
+            }
         } finally {
             image.close()
         }

@@ -257,7 +257,7 @@ fun MainAppScreen(
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissOverlayPermissionDialog() },
                     title = { Text("需要悬浮窗权限") },
-                    text = { Text("请前往系统设置授予“显示在其他应用上层”权限。") },
+                    text = { Text("中国大陆地区请前往系统设置授予“显示在其他应用上层”权限。") },
                     confirmButton = {
                         TextButton(onClick = { viewModel.openOverlayPermissionSettings(context) }) {
                             Text("去授权")

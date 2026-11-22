@@ -30,6 +30,8 @@ object EmojiExtractorEngine {
     // Must accommodate rendering noise (≈0.003) while rejecting a real
     // pose change (typically 0.01+).  Used in autocorrelation scoring.
     private const val MATCH_THRESHOLD = 0.007f
+    private const val CYCLE_GRID_SIZE = 80
+    private const val MAX_STARTUP_FRAMES = 6
 
     // ── Online-recording safety limit ───────────────────────────
     // No hard cap on cycle length, but a generous safety net so we
@@ -227,12 +229,15 @@ object EmojiExtractorEngine {
         context: Context,
         rawFrames: List<Bitmap>,
         settings: CaptureSettings = CaptureSettings(),
-        sourceApp: String = "截屏"
+        sourceApp: String = "截屏",
+        framesAlreadyCropped: Boolean = false,
+        originalBackgroundColor: Int? = null,
+        forceAnimated: Boolean = false
     ): ExtractedEmoji = withContext(Dispatchers.IO) {
         val sampleFrame = rawFrames.firstOrNull()
             ?: throw IllegalArgumentException("Frame sequence cannot be empty")
 
-        val isAnimated = analyzeIsAnimated(rawFrames)
+        val isAnimated = forceAnimated || analyzeIsAnimated(rawFrames)
 
         val outputDir = File(context.filesDir, "extracted_emojis").apply {
             if (!exists()) mkdirs()
@@ -240,8 +245,8 @@ object EmojiExtractorEngine {
         val id = UUID.randomUUID().toString()
 
         // ── Auto-crop emoji from chat background ─────────────────
-        val cropBounds = EmojiCropper.findEmojiBounds(sampleFrame)
-        val backgroundColor = EmojiCropper.detectBackgroundColor(sampleFrame)
+        val cropBounds = if (framesAlreadyCropped) null else EmojiCropper.findFullResolutionBounds(sampleFrame)
+        val backgroundColor = originalBackgroundColor ?: EmojiCropper.detectBackgroundColor(sampleFrame)
         val cropFrame: (Bitmap) -> Bitmap = { bmp ->
             if (cropBounds != null) EmojiCropper.cropToBounds(bmp, cropBounds) else bmp
         }
@@ -252,12 +257,18 @@ object EmojiExtractorEngine {
             val file = File(outputDir, "capture_$id.$ext")
 
             val outFrame = cropFrame(sampleFrame)
-            FileOutputStream(file).use { out ->
-                if (format == "PNG") {
-                    outFrame.compress(Bitmap.CompressFormat.PNG, 100, out)
-                } else {
-                    outFrame.compress(Bitmap.CompressFormat.JPEG, 85, out)
+            val width = outFrame.width
+            val height = outFrame.height
+            try {
+                FileOutputStream(file).use { out ->
+                    if (format == "PNG") {
+                        outFrame.compress(Bitmap.CompressFormat.PNG, 100, out)
+                    } else {
+                        outFrame.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                    }
                 }
+            } finally {
+                if (outFrame !== sampleFrame) outFrame.recycle()
             }
 
             ExtractedEmoji(
@@ -267,8 +278,8 @@ object EmojiExtractorEngine {
                 thumbnailPath = file.absolutePath,
                 isAnimated = false,
                 format = format,
-                width = outFrame.width,
-                height = outFrame.height,
+                width = width,
+                height = height,
                 frameCount = 1,
                 minPeriodMs = 0L,
                 timestamp = System.currentTimeMillis(),
@@ -280,37 +291,43 @@ object EmojiExtractorEngine {
             val (minCycleFrames, minPeriodMs) = detectMinimumPeriod(rawFrames)
             val croppedFrames = minCycleFrames.map { cropFrame(it) }
 
-            val file = File(outputDir, "capture_$id.gif")
-            val gifEncoder = GifEncoder()
-            gifEncoder.setDelay(1000 / 15)
-            gifEncoder.start(file.absolutePath)
-            gifEncoder.buildPalette(croppedFrames)
-            for (frame in croppedFrames) {
-                gifEncoder.addFrame(frame)
-            }
-            gifEncoder.finish()
+            try {
+                val file = File(outputDir, "capture_$id.gif")
+                val gifEncoder = GifEncoder()
+                gifEncoder.setDelay(1000 / 15)
+                gifEncoder.start(file.absolutePath)
+                gifEncoder.buildPalette(croppedFrames)
+                for (frame in croppedFrames) {
+                    gifEncoder.addFrame(frame)
+                }
+                gifEncoder.finish()
 
-            val thumbFile = File(outputDir, "thumb_$id.jpg")
-            FileOutputStream(thumbFile).use { out ->
-                croppedFrames.first().compress(Bitmap.CompressFormat.JPEG, 60, out)
-            }
+                val thumbFile = File(outputDir, "thumb_$id.png")
+                FileOutputStream(thumbFile).use { out ->
+                    croppedFrames.first().compress(Bitmap.CompressFormat.PNG, 100, out)
+                }
 
-            ExtractedEmoji(
-                id = id,
-                title = "录制_${System.currentTimeMillis() % 10000}",
-                filePath = file.absolutePath,
-                thumbnailPath = thumbFile.absolutePath,
-                isAnimated = true,
-                format = "GIF",
-                width = croppedFrames.first().width,
-                height = croppedFrames.first().height,
-                frameCount = croppedFrames.size,
-                minPeriodMs = minPeriodMs,
-                timestamp = System.currentTimeMillis(),
-                sourceApp = sourceApp,
-                sizeBytes = file.length(),
-                backgroundColor = backgroundColor
-            )
+                ExtractedEmoji(
+                    id = id,
+                    title = "录制_${System.currentTimeMillis() % 10000}",
+                    filePath = file.absolutePath,
+                    thumbnailPath = thumbFile.absolutePath,
+                    isAnimated = true,
+                    format = "GIF",
+                    width = croppedFrames.first().width,
+                    height = croppedFrames.first().height,
+                    frameCount = croppedFrames.size,
+                    minPeriodMs = minPeriodMs,
+                    timestamp = System.currentTimeMillis(),
+                    sourceApp = sourceApp,
+                    sizeBytes = file.length(),
+                    backgroundColor = backgroundColor
+                )
+            } finally {
+                croppedFrames.forEachIndexed { index, frame ->
+                    if (frame !== minCycleFrames[index]) frame.recycle()
+                }
+            }
         }
     }
 
@@ -323,6 +340,38 @@ object EmojiExtractorEngine {
      * Captures a short sample and returns true if the content appears animated.
      */
     fun isAnimated(frames: List<Bitmap>): Boolean = analyzeIsAnimated(frames)
+
+    /** Frames are already cropped around the emoji; ignore isolated pixel noise. */
+    fun isAnimatedSample(frames: List<Bitmap>): Boolean {
+        if (frames.size < MIN_FRAMES_FOR_ANIMATION) return false
+        val w = frames.first().width
+        val h = frames.first().height
+        if (frames.any { it.width != w || it.height != h }) return analyzeIsAnimated(frames)
+
+        var previous = IntArray(w * h)
+        frames.first().getPixels(previous, 0, w, 0, 0, w, h)
+        var current = IntArray(w * h)
+        var movingPairs = 0
+        for (frame in frames.drop(1)) {
+            frame.getPixels(current, 0, w, 0, 0, w, h)
+            var changed = 0
+            for (i in previous.indices) {
+                val a = previous[i]
+                val b = current[i]
+                if (abs(Color.red(a) - Color.red(b)) +
+                    abs(Color.green(a) - Color.green(b)) +
+                    abs(Color.blue(a) - Color.blue(b)) >= 48
+                ) changed++
+            }
+            val ratio = changed.toFloat() / previous.size
+            if (ratio >= 0.01f) return true
+            if (ratio >= 0.001f && ++movingPairs >= 2) return true
+            val swap = previous
+            previous = current
+            current = swap
+        }
+        return false
+    }
 
     private fun analyzeIsAnimated(frames: List<Bitmap>): Boolean {
         if (frames.size < MIN_FRAMES_FOR_ANIMATION) return false
@@ -372,30 +421,55 @@ object EmojiExtractorEngine {
      * [computeBestPeriod], and return the best cycle.
      */
     private fun detectMinimumPeriod(frames: List<Bitmap>): Pair<List<Bitmap>, Long> {
-        if (frames.size <= MIN_CYCLE_FRAMES) {
+        if (frames.size < MIN_CYCLE_FRAMES * 2) {
             return Pair(frames, (frames.size * 67L))
         }
 
-        val skipTopRows = (GRID_H * 0.10).toInt()
-        val cellsPerFrame = GRID_W * (GRID_H - skipTopRows)
-        val maxPossibleDiff = (cellsPerFrame * 255L * 3).toFloat()
-
-        // Build Slot list from bitmap frames
-        val slots = frames.map { bitmap ->
-            val scaled = Bitmap.createScaledBitmap(bitmap, GRID_W, GRID_H, false)
-            val pixels = IntArray(GRID_W * GRID_H)
-            scaled.getPixels(pixels, 0, GRID_W, 0, 0, GRID_W, GRID_H)
-            scaled.recycle()
-            Slot(bitmap, pixels)
+        val width = minOf(CYCLE_GRID_SIZE, frames.first().width)
+        val height = minOf(CYCLE_GRID_SIZE, frames.first().height)
+        val signatures = frames.map { bitmap ->
+            val scaled = Bitmap.createScaledBitmap(bitmap, width, height, true)
+            try {
+                IntArray(width * height).also { scaled.getPixels(it, 0, width, 0, 0, width, height) }
+            } finally {
+                if (scaled !== bitmap) scaled.recycle()
+            }
+        }
+        val maxDiff = (width * height * 255L * 3).toFloat()
+        fun difference(a: Int, b: Int): Float {
+            var total = 0L
+            for (i in signatures[a].indices) {
+                total += cellDiff(signatures[a][i], signatures[b][i])
+            }
+            return total / maxDiff
         }
 
-        val best = computeBestPeriod(slots, skipTopRows, maxPossibleDiff)
+        val adjacentMotion = (0 until frames.lastIndex).sumOf {
+            difference(it, it + 1).toDouble()
+        }.toFloat() / frames.lastIndex
+        val matchLimit = minOf(0.012f, adjacentMotion * 0.6f)
 
-        return if (best.period > 0 && best.score < MATCH_THRESHOLD * 2f) {
-            Pair(frames.subList(0, best.period), (best.period * 67L))
-        } else {
-            Pair(frames, (frames.size * 67L))
+        for (period in MIN_CYCLE_FRAMES..frames.size / 2) {
+            var bestStart = -1
+            var bestScore = Float.MAX_VALUE
+            for (start in 0..minOf(MAX_STARTUP_FRAMES, frames.size - 2 * period)) {
+                var score = 0f
+                var comparisons = 0
+                for (i in start until frames.size - period) {
+                    score += difference(i, i + period)
+                    comparisons++
+                }
+                val average = score / comparisons
+                if (average < bestScore) {
+                    bestScore = average
+                    bestStart = start
+                }
+            }
+            if (bestStart >= 0 && bestScore < matchLimit) {
+                return Pair(frames.subList(bestStart, bestStart + period), period * 67L)
+            }
         }
+        return Pair(frames, frames.size * 67L)
     }
 
     // ═══════════════════════════════════════════════════════════
