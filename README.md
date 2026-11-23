@@ -4,7 +4,6 @@
 <h1>表情大盗</h1>
 
 <p>
-<img src="https://img.shields.io/github/downloads/darkmatter2048/MemeCapture/total" alt="downloads" />
 <img src="https://img.shields.io/github/stars/darkmatter2048/MemeCapture" alt="stars" />
 <img src="https://img.shields.io/github/v/release/darkmatter2048/MemeCapture" alt="latest-release" />
 </p>
@@ -45,17 +44,6 @@
 <a href="https://github.com/darkmatter2048/MemeCapture/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=darkmatter2048/MemeCapture" />
 </a>
-
-## 鸣谢
-
-非常感谢以下个人和企业对本项目的支持 ❤️
-
-<table>
-  <tr>
-    <td><img alt="乔星欢" src="https://www.qiaoxh.com/favicon.ico" width="50" height="50" /></td>
-    <td>非常感谢 <a href="https://www.qiaoxh.com/?from=dyblog.online">乔星欢</a> 为 dyblog.online 提供的免费 CDN 服务 (<a href="https://www.devpole.com/?from=dyblog.online">DevPole</a>) ❤️</td>
-  </tr>
-</table>
 
 ## Star History
 
